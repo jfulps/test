@@ -55,6 +55,10 @@ module.exports = class MemoryCache {
         const item = node.value;
 
         // TODO: Check for expiry, and clear if expired.
+        if (item.expireAfter && item.expireAfter < Date.now()) {
+            await this.clear(key);
+            return { cached: false, value: null };
+        }
 
         // Mark as most recently read.
         this._mostRecentlyRead.moveToFront(node);
@@ -73,7 +77,15 @@ module.exports = class MemoryCache {
     async set(key, value, opts = {}) {
         // Add item.
         // TODO: Store expiry too, and clear when expired.
-        const item = { key, value };
+        let expireAfter = 0
+        if (opts.expireAfterMS) {
+            expireAfter = Date.now() + opts.expireAfterMS;
+
+            this._scheduler.runOnceAfter(() => {
+                this.clear(key)
+            }, opts.expireAfterMS)
+        }
+        const item = { key, value, expireAfter };
         this._mostRecentlyRead.addToFront(item);
         this._nodesByKey.set(key, this._mostRecentlyRead.head);
 
@@ -82,6 +94,11 @@ module.exports = class MemoryCache {
             const oldestItem = this._mostRecentlyRead.tail.value;
             await this.clear(oldestItem.key);
         }
+    }
+
+
+    async isItemInCache(key) {
+        return !!this._nodesByKey.get(key);
     }
 
     /**

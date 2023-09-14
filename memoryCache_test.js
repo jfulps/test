@@ -1,7 +1,9 @@
 const assert = require('assert').strict;
 const MemoryCache = require('./memoryCache');
+const { promisify } = require('util');
+const sleep = promisify(setTimeout);
 
-suite('MemoryCache', function() {
+suite('MemoryCache', function () {
     // Helpers:
 
     async function assertNotInCache(cache, key) {
@@ -26,7 +28,7 @@ suite('MemoryCache', function() {
 
     // Tests:
 
-    test('Basic', async function() {
+    test('Basic', async function () {
         // Without worrying about capacity or expiry,
         // we should be able to get, set, and clear.
 
@@ -64,7 +66,7 @@ suite('MemoryCache', function() {
         await assertCachedEquals(cache, 'b', b);
     });
 
-    test('Capacity', async function() {
+    test('Capacity', async function () {
         // We should be able to limit the cache to a fixed memory capacity.
         // Adding items to the cache beyond the capacity should purge the
         // least recently read items.
@@ -128,7 +130,24 @@ suite('MemoryCache', function() {
         await assertCachedEquals(cache, 'e', e);
     });
 
-    test('Expiry', async function() {
-        this.skip(); // TODO: Implement!
+    test('Expiry', async function () {
+        const cache = new MemoryCache();
+
+        // Verify get method removes expired item
+        const a = 'A';
+        await cache.set('a', a, { expireAfterMS: 100 });
+        await sleep(10);
+        await assertCachedEquals(cache, 'a', a);
+        await sleep(120);
+        await assertNotInCache(cache, 'a');
+
+        // Verify scheduler expired item
+        const b = 'B';
+        await cache.set('b', b, { expireAfterMS: 100 });
+        await sleep(10);
+        await assertCachedEquals(cache, 'b', b);
+        await sleep(120);
+        const isInCache = await cache.isItemInCache('b');
+        assert.equal(isInCache, false)
     });
 });
